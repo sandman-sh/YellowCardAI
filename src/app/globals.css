@@ -1,0 +1,411 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-pitch-green: #0B3B24;
+  --color-ref-yellow: #FFD700;
+  --color-ref-red: #FF0000;
+  --color-pitch-white: #FFFFFF;
+  --color-pitch-black: #000000;
+  
+  --font-sans: 'Outfit', sans-serif;
+}
+
+:root {
+  --background: #0B3B24;
+  --foreground: #FFFFFF;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Bauhaus Design System Utilities */
+.neo-border {
+  border: 4px solid #000000;
+}
+
+.neo-shadow {
+  box-shadow: 6px 6px 0px 0px #000000;
+}
+
+.neo-shadow-yellow {
+  box-shadow: 6px 6px 0px 0px #FFD700;
+}
+
+.neo-shadow-red {
+  box-shadow: 6px 6px 0px 0px #FF0000;
+}
+
+.neo-shadow-green {
+  box-shadow: 6px 6px 0px 0px #0B3B24;
+}
+
+.neo-shadow-white {
+  box-shadow: 6px 6px 0px 0px #FFFFFF;
+}
+
+.neo-card {
+  border: 4px solid #000000;
+  box-shadow: 6px 6px 0px 0px #000000;
+  background-color: #FFFFFF;
+  color: #000000;
+  border-radius: 0px;
+  transition: all 0.2s ease;
+}
+
+.neo-card-green {
+  border: 4px solid #000000;
+  box-shadow: 6px 6px 0px 0px #000000;
+  background-color: #0B3B24;
+  color: #FFFFFF;
+  border-radius: 0px;
+}
+
+.neo-button {
+  border: 4px solid #000000;
+  box-shadow: 4px 4px 0px 0px #000000;
+  background-color: #FFD700;
+  color: #000000;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.1s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.5rem;
+}
+
+.neo-button:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px 0px #000000;
+}
+
+.neo-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0px 0px 0px 0px #000000;
+}
+
+.neo-input {
+  border: 4px solid #000000;
+  background-color: #FFFFFF;
+  color: #000000;
+  padding: 0.75rem 1rem;
+  border-radius: 0px;
+  outline: none;
+  font-weight: 700;
+}
+
+.neo-input:focus {
+  box-shadow: 4px 4px 0px 0px #000000;
+}
+
+/* Custom scrollbar for referee note */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-left: 2px solid #000000;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #FFD700;
+  border: 2px solid #000000;
+}
+
+/* Referee Note Lines Style */
+.referee-notepad-lines {
+  background-image: linear-gradient(#e2e8f0 1px, transparent 1px);
+  background-size: 100% 2rem;
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/* ─── ANIMATIONS & MICRO-INTERACTIONS ─── */
+/* ═══════════════════════════════════════════════════════ */
+
+/* ── Entrance Animations ── */
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-down {
+  0% { opacity: 0; transform: translateY(-20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-left {
+  0% { opacity: 0; transform: translateX(-40px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-in-right {
+  0% { opacity: 0; transform: translateX(40px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes scale-in {
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-in-rotate {
+  0% { opacity: 0; transform: translateY(40px) rotate(-8deg); }
+  100% { opacity: 1; transform: translateY(0) rotate(3deg); }
+}
+
+/* ── Continuous / Looping Animations ── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(3deg); }
+  50% { transform: translateY(-12px) rotate(3deg); }
+}
+
+@keyframes float-reverse {
+  0%, 100% { transform: translateY(0px) rotate(-12deg); }
+  50% { transform: translateY(8px) rotate(-12deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0px 0px rgba(255, 215, 0, 0); }
+  50% { box-shadow: 0 0 20px 4px rgba(255, 215, 0, 0.25); }
+}
+
+@keyframes pulse-glow-red {
+  0%, 100% { box-shadow: 0 0 0px 0px rgba(255, 0, 0, 0); }
+  50% { box-shadow: 0 0 16px 3px rgba(255, 0, 0, 0.2); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes subtle-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes badge-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes scroll-hint {
+  0%, 100% { opacity: 0.3; transform: translateX(-50%) translateY(0); }
+  50% { opacity: 0.7; transform: translateX(-50%) translateY(8px); }
+}
+
+@keyframes spin-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes typing-dot {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes card-flip-in {
+  0% { opacity: 0; transform: perspective(800px) rotateY(-30deg) translateZ(-40px); }
+  100% { opacity: 1; transform: perspective(800px) rotateY(0deg) translateZ(0); }
+}
+
+/* ── Animation Utility Classes ── */
+.anim-fade-in-up {
+  animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-fade-in-down {
+  animation: fade-in-down 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-fade-in-left {
+  animation: fade-in-left 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-fade-in-right {
+  animation: fade-in-right 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-fade-in {
+  animation: fade-in 0.5s ease forwards;
+  opacity: 0;
+}
+
+.anim-scale-in {
+  animation: scale-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-slide-rotate {
+  animation: slide-in-rotate 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-card-flip {
+  animation: card-flip-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+.anim-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.anim-float-slow {
+  animation: float-slow 4s ease-in-out infinite;
+}
+
+.anim-float-reverse {
+  animation: float-reverse 3.5s ease-in-out infinite;
+}
+
+.anim-pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
+}
+
+.anim-pulse-glow-red {
+  animation: pulse-glow-red 2.5s ease-in-out infinite;
+}
+
+.anim-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,215,0,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+.anim-scroll-hint {
+  animation: scroll-hint 2s ease-in-out infinite;
+}
+
+.anim-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+/* ── Staggered Delay Modifiers ── */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+.delay-600 { animation-delay: 0.6s; }
+.delay-700 { animation-delay: 0.7s; }
+.delay-800 { animation-delay: 0.8s; }
+.delay-1000 { animation-delay: 1.0s; }
+.delay-1200 { animation-delay: 1.2s; }
+.delay-1500 { animation-delay: 1.5s; }
+
+/* ── Scroll-Triggered Reveal (JS adds .in-view) ── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-left {
+  opacity: 0;
+  transform: translateX(-30px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-left.in-view {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.reveal-scale {
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal-scale.in-view {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Micro-Interaction: Neo-card hover lift ── */
+.neo-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.neo-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0px 0px #000000;
+}
+
+/* ── Micro-Interaction: Link underline slide ── */
+.link-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.link-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0%;
+  height: 3px;
+  background-color: #FFD700;
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.link-underline:hover::after {
+  width: 100%;
+}
+
+/* ── Selection color ── */
+::selection {
+  background-color: #FFD700;
+  color: #000000;
+}
+
+::-moz-selection {
+  background-color: #FFD700;
+  color: #000000;
+}
+
+/* ── Smooth scroll ── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Typing indicator dots ── */
+.typing-dot {
+  animation: typing-dot 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
