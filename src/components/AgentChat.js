@@ -59,12 +59,22 @@ export default function AgentChat({
     setLoading(true);
 
     try {
+      // Build conversation history for AI context (last 20 messages max)
+      const currentMessages = [...messages, { role: "user", content: userMessage }];
+      const conversationHistory = currentMessages
+        .slice(-20)
+        .map(m => ({
+          role: m.role === "referee" ? "assistant" : "user",
+          content: m.content
+        }));
+
       // Call Next API Route
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: userMessage,
+          conversationHistory,
           memory: memory,
           address: account?.address
         })
@@ -118,7 +128,7 @@ export default function AgentChat({
       console.error(err);
       setMessages(prev => [...prev, { 
         role: "referee", 
-        content: "**System Foul:** Could not reach SIRO's brain. Using fallback local rules." 
+        content: "**⚠️ System Foul:** SIRO referee is temporarily unavailable. Please try again in a moment." 
       }]);
     } finally {
       setLoading(false);

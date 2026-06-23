@@ -3,14 +3,28 @@ import { MemWal } from "@mysten-incubation/memwal";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+// Models to try in order — primary and fallback
+const MODELS = [
+  "google/gemini-2.0-flash-001",
+  "meta-llama/llama-3.1-8b-instruct:free",
+  "mistralai/mistral-7b-instruct:free"
+];
+
 export async function POST(req) {
   try {
-    const { message, memory, apiKeyOverride, address } = await req.json();
+    const { message, conversationHistory, memory, apiKeyOverride, address } = await req.json();
 
-    // Use environment variable or client-side override key
     const apiKey = apiKeyOverride || process.env.OPENROUTER_API_KEY;
 
-    let activeMemory = memory;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "SIRO is offline — no AI API key configured. Please set OPENROUTER_API_KEY in your environment." },
+        { status: 503 }
+      );
+    }
+
+    // --- Walrus Memory Recall ---
+    let activeMemory = memory || {};
     let memwal = null;
     const memwalKey = process.env.MEMWAL_PRIVATE_KEY;
     const memwalAccountId = process.env.MEMWAL_ACCOUNT_ID;
@@ -32,91 +46,157 @@ export async function POST(req) {
       }
     }
 
-    if (!apiKey) {
-      console.warn("No OpenRouter API key provided. Using fallback simulated SIRO copilot.");
-      return NextResponse.json(simulateSiroResponse(message, activeMemory));
-    }
+    // --- Build System Prompt ---
+    const systemPrompt = `You are SIRO, a strict, analytical, and highly personalized FIFA World Cup 2026 betting copilot and AI referee agent. You are NOT a friendly chatbot. You are a disciplinary authority. Your single mission is to detect and prevent "tilting" — when bettors make emotional, irrational, or oversized bets.
 
-    const systemPrompt = `You are SIRO, a strict, analytical, and highly personalized football betting copilot and referee. Your single purpose is to stop sports bettors from "tilting" (making emotional, irrational, or oversized bets, especially after losses).
+CORE IDENTITY:
+- You are an AI referee with real authority over the user's bets
+- You use football referee terminology: Yellow Card, Red Card, VAR Review, Penalty, Offside, Clean Sheet
+- You address the user as "player" or "manager"
+- You are firm, direct, and protective of their bankroll
 
-Your tone: Direct, authoritative, sharp, yet personalized and conversational. Address the user directly, referring to them as a manager or player. Use football referee terminology (e.g., yellow card, red card, penalty, VAR review, tactical foul, clean sheet, offside).
-
-Below is the user's historical Walrus Memory state (their on-chain bet ledger):
-- Total Bets: ${activeMemory.totalBets || 0}
+USER'S WALRUS MEMORY STATE (on-chain bet ledger):
+- Total Bets Placed: ${activeMemory.totalBets || 0}
 - Win Rate: ${activeMemory.winRate || 0}%
 - Recent Consecutive Losses: ${activeMemory.recentLossesCount || 0}
 - Current Emotional State: ${activeMemory.emotionalState || "STABLE"}
-- Previous Yellow Cards: ${activeMemory.tiltWarningCount || 0}
+- Previous Yellow Cards Issued: ${activeMemory.tiltWarningCount || 0}
 
-Analyze the user's message alongside their historical state. Look for signs of tilt:
-1. Panic betting: Proposing huge bets right after a loss.
-2. Chasing losses: Trying to double down to make back lost funds.
-3. Emotional betting: Placing bets based on anger or frustration rather than stats.
-4. Over-leverage: Bet size disproportionate to safe bankroll management (e.g., betting large chunks of their SUI balance at once).
+CONVERSATION ANALYSIS:
+You have access to the FULL conversation history. Analyze the user's emotional trajectory across ALL messages, not just the latest one. Look for:
+- Escalating frustration (calm → annoyed → angry over multiple messages)
+- Increasing bet sizes over the session
+- Ignoring your previous warnings or Yellow Cards
+- Shifting from analytical language to emotional language
+- Rapid-fire betting requests (placing many bets quickly without thinking)
+- Contradicting their own earlier analysis
+Use the conversation pattern to make your assessment MORE accurate. A user who was calm 3 messages ago but is now saying "whatever just bet" is clearly tilting.
 
-Provide personalized coaching and warnings based on their statistics (e.g. if they have consecutive losses, call it out directly; if their win rate is low, advise caution; if stable, praise their discipline).
+TILT DETECTION RULES — You MUST set isTilt to true if ANY of these are present:
+1. The user says "I don't care about stats/analysis" or dismisses data → TILT (emotional betting)
+2. The user says "bet everything", "all in", "put it all", "max bet", "yolo" → TILT (over-leverage)
+3. The user says "double down", "make it back", "revenge bet" → TILT (chasing losses)
+4. The user expresses anger, frustration, or desperation → TILT (emotional state)
+5. The user proposes a bet amount >= 5 SUI → TILT (over-leverage)
+6. The user has 2+ recent consecutive losses and is placing another bet → TILT (chasing losses)
+7. The user says "just bet", "blindly", "gut feeling", "who cares", "whatever" → TILT (irrational)
+8. The user ignores your previous warnings or Yellow Cards → TILT (repeated offense)
+9. The user's emotional tone has ESCALATED compared to earlier messages in this conversation → TILT
+10. The user has received a Yellow Card earlier in this conversation and is still pushing risky bets → TILT (escalate to RED CARD)
 
-You MUST respond ONLY in valid JSON. Do not include any markdown block ticks, code wrappers, or extra text. Output exactly this JSON structure:
+CRITICAL: Phrases like "I don't care about stats" or "bet everything" are ALWAYS tilt. Never approve these bets. Issue a 🟨 YELLOW CARD.
+
+WHEN isTilt is true:
+- Issue a 🟨 YELLOW CARD in your refereeResponse
+- Explain exactly WHY this is tilt behavior
+- Reference their conversation pattern if relevant (e.g., "You started this session calmly but your last 3 messages show escalating frustration")
+- Reference their stats (losses, win rate) to justify your call
+- Advise them to cool down, review analysis, and come back with discipline
+- If they have 3+ yellow cards, received a yellow card earlier in this conversation, or are in BLOWN BANKROLL state, issue a 🟥 RED CARD
+
+WHEN isTilt is false:
+- Approve the bet with a 🔎 VAR REVIEW
+- Provide brief tactical analysis of the team/match
+- Praise their discipline if their stats are good
+
+RESPONSE FORMAT — You MUST respond with ONLY valid JSON, no markdown, no code blocks:
 {
-  "refereeResponse": "Your written advice/warning as SIRO (1-3 sentences). Address them personally, referencing their stats/losses if applicable, and maintain a firm referee tone.",
-  "isTilt": true/false (set to true if the message or context indicates tilt/emotional stress/loss chasing),
-  "emotionalState": "STABLE" | "FRUSTRATED" | "TILTING" | "BLOWN BANKROLL" (classify based on history + current message),
+  "refereeResponse": "Your response as SIRO (2-4 sentences). Use emoji like 🟨 🟥 🔎 ⚽ ✅",
+  "isTilt": true or false,
+  "emotionalState": "STABLE" | "FRUSTRATED" | "TILTING" | "BLOWN BANKROLL",
   "betDetails": {
-    "amount": number (parsed bet size if mentioned, e.g. 2 for '2 SUI', otherwise null),
-    "asset": "SUI" | "USD" | null,
-    "team": "string of the team they are betting on, or null",
-    "match": "string representing the match, or null"
-  } or null
+    "amount": number or null,
+    "asset": "SUI",
+    "team": "team name" or null,
+    "match": "match description" or null
+  }
 }`;
 
-    try {
-      const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://yellowcard-ai.sui",
-          "X-Title": "YellowCard AI Copilot",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3-8b-instruct:free", // using a reliable free model that supports JSON mode
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message }
-          ],
-          response_format: { type: "json_object" }
-        })
-      });
+    // --- Call OpenRouter with model fallback ---
+    let lastError = null;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`OpenRouter API error (falling back to simulator): ${response.status} ${errorText}`);
-        return NextResponse.json(simulateSiroResponse(message, activeMemory));
-      }
-
-      const result = await response.json();
-      const responseText = result.choices[0]?.message?.content;
-
+    for (const model of MODELS) {
       try {
-        const parsedJson = JSON.parse(responseText.trim());
-        return NextResponse.json(parsedJson);
-      } catch (parseErr) {
-        console.warn("Failed to parse OpenRouter response as JSON, trying cleaning:", responseText, parseErr);
+        const response = await fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://yellowcard-ai.vercel.app",
+            "X-Title": "YellowCard AI Copilot",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              // Include full conversation history if available, otherwise just the latest message
+              ...(conversationHistory && conversationHistory.length > 0
+                ? conversationHistory
+                : [{ role: "user", content: message }])
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`OpenRouter model ${model} failed (${response.status}): ${errorText}`);
+          lastError = `Model ${model}: ${response.status}`;
+          continue; // try next model
+        }
+
+        const result = await response.json();
+        const responseText = result.choices?.[0]?.message?.content;
+
+        if (!responseText) {
+          console.warn(`Empty response from model ${model}`);
+          lastError = `Model ${model}: empty response`;
+          continue;
+        }
+
+        // Parse JSON response
         try {
           const cleaned = responseText
             .replace(/```json/gi, "")
             .replace(/```/g, "")
             .trim();
-          return NextResponse.json(JSON.parse(cleaned));
-        } catch (cleanParseErr) {
-          console.warn("Failed to parse cleaned OpenRouter response (falling back to simulator):", cleanParseErr);
-          return NextResponse.json(simulateSiroResponse(message, activeMemory));
+          const parsedJson = JSON.parse(cleaned);
+
+          // Validate required fields exist
+          if (!parsedJson.refereeResponse) {
+            console.warn(`Model ${model} returned invalid structure`);
+            lastError = `Model ${model}: missing refereeResponse`;
+            continue;
+          }
+
+          // Ensure betDetails defaults
+          if (parsedJson.betDetails) {
+            parsedJson.betDetails.asset = parsedJson.betDetails.asset || "SUI";
+          }
+
+          return NextResponse.json(parsedJson);
+        } catch (parseErr) {
+          console.warn(`Failed to parse JSON from model ${model}:`, responseText, parseErr);
+          lastError = `Model ${model}: JSON parse error`;
+          continue;
         }
+      } catch (fetchErr) {
+        console.warn(`Network error with model ${model}:`, fetchErr);
+        lastError = `Model ${model}: network error`;
+        continue;
       }
-    } catch (fetchErr) {
-      console.warn("OpenRouter communication error (falling back to simulator):", fetchErr);
-      return NextResponse.json(simulateSiroResponse(message, activeMemory));
     }
+
+    // All models failed — return real error
+    return NextResponse.json(
+      { 
+        error: "SIRO referee is temporarily unavailable. All AI models failed to respond. Please try again in a moment.",
+        details: lastError
+      },
+      { status: 502 }
+    );
+
   } catch (error) {
     console.error("Critical error in POST API route /api/chat:", error);
     return NextResponse.json(
@@ -124,82 +204,4 @@ You MUST respond ONLY in valid JSON. Do not include any markdown block ticks, co
       { status: 500 }
     );
   }
-}
-
-// Fallback logic for local testing without OpenRouter API Key
-function simulateSiroResponse(message, memory = {}) {
-  const lowercase = message.toLowerCase();
-  const safeMemory = memory || {};
-  
-  // Try to parse a bet
-  let amount = null;
-  const suiMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:sui)/i);
-  if (suiMatch) {
-    amount = parseFloat(suiMatch[1]);
-  }
-
-  let team = null;
-  // Try to parse the team name dynamically after the word "on"
-  const onMatch = message.match(/on\s+([A-Za-z\s]{3,20}?)(?:\s+to\s+win|\s+vs|\.|$)/i);
-  if (onMatch) {
-    const rawTeam = onMatch[1].trim();
-    const ignoredWords = ["the", "this", "my", "your", "a", "an", "some"];
-    if (!ignoredWords.includes(rawTeam.toLowerCase())) {
-      team = rawTeam.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    }
-  }
-
-  // Fallback to checking against a comprehensive list of World Cup team names
-  if (!team) {
-    const teams = ["argentina", "brazil", "france", "germany", "spain", "england", "mexico", "usa", "canada", "croatia", "morocco", "portugal", "italy", "japan", "south korea", "south africa", "czech republic"];
-    for (const t of teams) {
-      if (lowercase.includes(t)) {
-        team = t.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-        break;
-      }
-    }
-  }
-
-  const betDetails = amount || team ? {
-    amount: amount || 1,
-    asset: "SUI",
-    team: team || "Unknown Team",
-    match: team ? `${team} vs Opponent` : "World Cup Match"
-  } : null;
-
-  // Simple rule-based tilt detection
-  const isTiltWord = lowercase.includes("tilt") || 
-                     lowercase.includes("lose") || 
-                     lowercase.includes("angry") || 
-                     lowercase.includes("all in") || 
-                     lowercase.includes("double") || 
-                     (amount && amount >= 5) || // high risk bet
-                     ((safeMemory.recentLossesCount || 0) >= 2 && amount && amount > 0); // betting right after consecutive losses
-
-  let emotionalState = "STABLE";
-  if (isTiltWord) {
-    if ((safeMemory.recentLossesCount || 0) >= 3) {
-      emotionalState = "BLOWN BANKROLL";
-    } else if ((safeMemory.recentLossesCount || 0) >= 1) {
-      emotionalState = "TILTING";
-    } else {
-      emotionalState = "FRUSTRATED";
-    }
-  }
-
-  let refereeResponse = "";
-  if (isTiltWord) {
-    refereeResponse = `⚠️ SIRO WARNING: You are displaying signs of tilt, player! Placing a ${amount || 2} SUI bet right now with a history of ${safeMemory.recentLossesCount || 0} consecutive losses is dangerous. Step away, cool down, and protect your SUI bankroll.`;
-  } else if (betDetails) {
-    refereeResponse = `🔎 SIRO VAR REVIEW: I've reviewed your request. Proposing a disciplined bet of ${amount || 1} SUI on ${team || 'your team'} fits your stable playbook. Play approved!`;
-  } else {
-    refereeResponse = `⚽ Play continues. I am SIRO, monitoring your Web3 betting plays. Propose a new bet (e.g., 'Put 2 SUI on France to win') or ask for a wallet report!`;
-  }
-
-  return {
-    refereeResponse,
-    isTilt: isTiltWord,
-    emotionalState,
-    betDetails
-  };
 }
