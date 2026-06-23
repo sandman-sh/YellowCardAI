@@ -80,11 +80,17 @@ export default function AgentChat({
         })
       });
 
-      if (!response.ok) {
-        throw new Error("Referee failed to respond.");
-      }
-
       const data = await response.json();
+
+      if (!response.ok || data.error) {
+        const errorMsg = data.error || "Referee failed to respond. Please try again.";
+        setMessages(prev => [...prev, { 
+          role: "referee", 
+          content: `**⚠️ System Foul:** ${errorMsg}`
+        }]);
+        setLoading(false);
+        return;
+      }
       
       // Append referee message
       setMessages(prev => [...prev, { 

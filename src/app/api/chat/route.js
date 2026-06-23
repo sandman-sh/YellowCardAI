@@ -3,11 +3,11 @@ import { MemWal } from "@mysten-incubation/memwal";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// Models to try in order — primary and fallback
+// Models to try in order — openrouter/free auto-selects the best available free model
 const MODELS = [
-  "google/gemini-2.0-flash-001",
-  "meta-llama/llama-3.1-8b-instruct:free",
-  "mistralai/mistral-7b-instruct:free"
+  "openrouter/free",
+  "google/gemma-2-9b-it:free",
+  "qwen/qwen-2.5-7b-instruct:free"
 ];
 
 export async function POST(req) {
