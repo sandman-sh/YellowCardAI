@@ -3,13 +3,6 @@ import { MemWal } from "@mysten-incubation/memwal";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// Models to try in order — openrouter/free auto-selects the best available free model
-const MODELS = [
-  "openrouter/free",
-  "google/gemma-2-9b-it:free",
-  "qwen/qwen-2.5-7b-instruct:free"
-];
-
 export async function POST(req) {
   try {
     const { message, conversationHistory, memory, apiKeyOverride, address } = await req.json();
@@ -112,90 +105,105 @@ RESPONSE FORMAT — You MUST respond with ONLY valid JSON, no markdown, no code 
   }
 }`;
 
-    // --- Call OpenRouter with model fallback ---
-    let lastError = null;
+    // --- Build messages array ---
+    const messagesArray = [
+      { role: "system", content: systemPrompt },
+      ...(conversationHistory && conversationHistory.length > 0
+        ? conversationHistory
+        : [{ role: "user", content: message }])
+    ];
 
-    for (const model of MODELS) {
-      try {
-        const response = await fetch(OPENROUTER_URL, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://yellowcard-ai.vercel.app",
-            "X-Title": "YellowCard AI Copilot",
-          },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              // Include full conversation history if available, otherwise just the latest message
-              ...(conversationHistory && conversationHistory.length > 0
-                ? conversationHistory
-                : [{ role: "user", content: message }])
-            ],
-            temperature: 0.3,
-            response_format: { type: "json_object" }
-          })
-        });
+    // --- Call OpenRouter API using built-in model fallbacks (per docs) ---
+    // Using `models` array: OpenRouter automatically tries the next model if one fails
+    // See: https://openrouter.ai/docs/guides/routing/model-fallbacks
+    try {
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://yellowcard-ai.vercel.app",
+          "X-OpenRouter-Title": "YellowCard AI Copilot",
+        },
+        body: JSON.stringify({
+          // Use `models` array for automatic server-side fallback (per OpenRouter docs)
+          models: [
+            "openrouter/free",
+            "meta-llama/llama-3.2-3b-instruct:free",
+            "qwen/qwen-2.5-7b-instruct:free"
+          ],
+          messages: messagesArray,
+          temperature: 0.3,
+          response_format: { type: "json_object" }
+        })
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.warn(`OpenRouter model ${model} failed (${response.status}): ${errorText}`);
-          lastError = `Model ${model}: ${response.status}`;
-          continue; // try next model
-        }
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`OpenRouter API error (${response.status}):`, errorBody);
 
-        const result = await response.json();
-        const responseText = result.choices?.[0]?.message?.content;
-
-        if (!responseText) {
-          console.warn(`Empty response from model ${model}`);
-          lastError = `Model ${model}: empty response`;
-          continue;
-        }
-
-        // Parse JSON response
+        let errorMessage = "SIRO referee is temporarily unavailable.";
         try {
-          const cleaned = responseText
-            .replace(/```json/gi, "")
-            .replace(/```/g, "")
-            .trim();
-          const parsedJson = JSON.parse(cleaned);
-
-          // Validate required fields exist
-          if (!parsedJson.refereeResponse) {
-            console.warn(`Model ${model} returned invalid structure`);
-            lastError = `Model ${model}: missing refereeResponse`;
-            continue;
-          }
-
-          // Ensure betDetails defaults
-          if (parsedJson.betDetails) {
-            parsedJson.betDetails.asset = parsedJson.betDetails.asset || "SUI";
-          }
-
-          return NextResponse.json(parsedJson);
-        } catch (parseErr) {
-          console.warn(`Failed to parse JSON from model ${model}:`, responseText, parseErr);
-          lastError = `Model ${model}: JSON parse error`;
-          continue;
+          const errorJson = JSON.parse(errorBody);
+          errorMessage = errorJson.error?.message || errorMessage;
+        } catch (e) {
+          // use default
         }
-      } catch (fetchErr) {
-        console.warn(`Network error with model ${model}:`, fetchErr);
-        lastError = `Model ${model}: network error`;
-        continue;
-      }
-    }
 
-    // All models failed — return real error
-    return NextResponse.json(
-      { 
-        error: "SIRO referee is temporarily unavailable. All AI models failed to respond. Please try again in a moment.",
-        details: lastError
-      },
-      { status: 502 }
-    );
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: response.status }
+        );
+      }
+
+      const result = await response.json();
+      const responseText = result.choices?.[0]?.message?.content;
+
+      if (!responseText) {
+        console.warn("OpenRouter returned empty content:", JSON.stringify(result));
+        return NextResponse.json(
+          { error: "SIRO received an empty response from the AI model. Please try again." },
+          { status: 502 }
+        );
+      }
+
+      // Parse JSON response — clean markdown wrappers if present
+      const cleaned = responseText
+        .replace(/```json/gi, "")
+        .replace(/```/g, "")
+        .trim();
+
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(cleaned);
+      } catch (parseErr) {
+        console.warn("Failed to parse AI response as JSON:", cleaned);
+        // If parsing fails, wrap the raw text as a refereeResponse
+        parsedJson = {
+          refereeResponse: responseText,
+          isTilt: false,
+          emotionalState: "STABLE",
+          betDetails: null
+        };
+      }
+
+      // Ensure required fields
+      if (!parsedJson.refereeResponse) {
+        parsedJson.refereeResponse = "⚽ SIRO is on the pitch. How can I help you, manager?";
+      }
+      if (parsedJson.betDetails) {
+        parsedJson.betDetails.asset = parsedJson.betDetails.asset || "SUI";
+      }
+
+      return NextResponse.json(parsedJson);
+
+    } catch (fetchErr) {
+      console.error("Network error calling OpenRouter:", fetchErr);
+      return NextResponse.json(
+        { error: "Network error reaching SIRO's AI brain. Please check your connection and try again." },
+        { status: 502 }
+      );
+    }
 
   } catch (error) {
     console.error("Critical error in POST API route /api/chat:", error);
