@@ -139,11 +139,24 @@ function simulateSiroResponse(message, memory = {}) {
   }
 
   let team = null;
-  const teams = ["argentina", "brazil", "france", "germany", "spain", "england", "mexico", "usa", "canada", "croatia", "morocco", "portugal", "italy", "japan", "south korea"];
-  for (const t of teams) {
-    if (lowercase.includes(t)) {
-      team = t.charAt(0).toUpperCase() + t.slice(1);
-      break;
+  // Try to parse the team name dynamically after the word "on"
+  const onMatch = message.match(/on\s+([A-Za-z\s]{3,20}?)(?:\s+to\s+win|\s+vs|\.|$)/i);
+  if (onMatch) {
+    const rawTeam = onMatch[1].trim();
+    const ignoredWords = ["the", "this", "my", "your", "a", "an", "some"];
+    if (!ignoredWords.includes(rawTeam.toLowerCase())) {
+      team = rawTeam.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+  }
+
+  // Fallback to checking against a comprehensive list of World Cup team names
+  if (!team) {
+    const teams = ["argentina", "brazil", "france", "germany", "spain", "england", "mexico", "usa", "canada", "croatia", "morocco", "portugal", "italy", "japan", "south korea", "south africa", "czech republic"];
+    for (const t of teams) {
+      if (lowercase.includes(t)) {
+        team = t.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        break;
+      }
     }
   }
 
