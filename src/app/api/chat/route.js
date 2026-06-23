@@ -69,47 +69,56 @@ You MUST respond ONLY in valid JSON. Do not include any markdown block ticks, co
   } or null
 }`;
 
-    const response = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://yellowcard-ai.sui",
-        "X-Title": "YellowCard AI Copilot",
-      },
-      body: JSON.stringify({
-        model: "openrouter/free", // using openrouter/free to dynamically route to available free models
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message }
-        ],
-        response_format: { type: "json_object" }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`OpenRouter API error: ${response.status} ${errorText}`);
-    }
-
-    const result = await response.json();
-    const responseText = result.choices[0]?.message?.content;
-
     try {
-      const parsedJson = JSON.parse(responseText.trim());
-      return NextResponse.json(parsedJson);
-    } catch (parseErr) {
-      console.error("Failed to parse OpenRouter response as JSON:", responseText, parseErr);
-      // Clean up markdown code blocks if Llama accidentally included them
-      const cleaned = responseText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      return NextResponse.json(JSON.parse(cleaned));
-    }
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://yellowcard-ai.sui",
+          "X-Title": "YellowCard AI Copilot",
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-3-8b-instruct:free", // using a reliable free model that supports JSON mode
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message }
+          ],
+          response_format: { type: "json_object" }
+        })
+      });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`OpenRouter API error (falling back to simulator): ${response.status} ${errorText}`);
+        return NextResponse.json(simulateSiroResponse(message, activeMemory));
+      }
+
+      const result = await response.json();
+      const responseText = result.choices[0]?.message?.content;
+
+      try {
+        const parsedJson = JSON.parse(responseText.trim());
+        return NextResponse.json(parsedJson);
+      } catch (parseErr) {
+        console.warn("Failed to parse OpenRouter response as JSON, trying cleaning:", responseText, parseErr);
+        try {
+          const cleaned = responseText
+            .replace(/```json/gi, "")
+            .replace(/```/g, "")
+            .trim();
+          return NextResponse.json(JSON.parse(cleaned));
+        } catch (cleanParseErr) {
+          console.warn("Failed to parse cleaned OpenRouter response (falling back to simulator):", cleanParseErr);
+          return NextResponse.json(simulateSiroResponse(message, activeMemory));
+        }
+      }
+    } catch (fetchErr) {
+      console.warn("OpenRouter communication error (falling back to simulator):", fetchErr);
+      return NextResponse.json(simulateSiroResponse(message, activeMemory));
+    }
   } catch (error) {
-    console.error("Error in API route /api/chat:", error);
+    console.error("Critical error in POST API route /api/chat:", error);
     return NextResponse.json(
       { error: "Failed to process chat with referee. Please try again." },
       { status: 500 }
@@ -118,8 +127,9 @@ You MUST respond ONLY in valid JSON. Do not include any markdown block ticks, co
 }
 
 // Fallback logic for local testing without OpenRouter API Key
-function simulateSiroResponse(message, memory) {
+function simulateSiroResponse(message, memory = {}) {
   const lowercase = message.toLowerCase();
+  const safeMemory = memory || {};
   
   // Try to parse a bet
   let amount = null;
@@ -151,13 +161,13 @@ function simulateSiroResponse(message, memory) {
                      lowercase.includes("all in") || 
                      lowercase.includes("double") || 
                      (amount && amount >= 5) || // high risk bet
-                     (memory.recentLossesCount >= 2 && amount && amount > 0); // betting right after consecutive losses
+                     ((safeMemory.recentLossesCount || 0) >= 2 && amount && amount > 0); // betting right after consecutive losses
 
   let emotionalState = "STABLE";
   if (isTiltWord) {
-    if (memory.recentLossesCount >= 3) {
+    if ((safeMemory.recentLossesCount || 0) >= 3) {
       emotionalState = "BLOWN BANKROLL";
-    } else if (memory.recentLossesCount >= 1) {
+    } else if ((safeMemory.recentLossesCount || 0) >= 1) {
       emotionalState = "TILTING";
     } else {
       emotionalState = "FRUSTRATED";
@@ -166,7 +176,7 @@ function simulateSiroResponse(message, memory) {
 
   let refereeResponse = "";
   if (isTiltWord) {
-    refereeResponse = `⚠️ SIRO WARNING: You are displaying signs of tilt, player! Placing a ${amount || 2} SUI bet right now with a history of ${memory.recentLossesCount || 0} consecutive losses is dangerous. Step away, cool down, and protect your SUI bankroll.`;
+    refereeResponse = `⚠️ SIRO WARNING: You are displaying signs of tilt, player! Placing a ${amount || 2} SUI bet right now with a history of ${safeMemory.recentLossesCount || 0} consecutive losses is dangerous. Step away, cool down, and protect your SUI bankroll.`;
   } else if (betDetails) {
     refereeResponse = `🔎 SIRO VAR REVIEW: I've reviewed your request. Proposing a disciplined bet of ${amount || 1} SUI on ${team || 'your team'} fits your stable playbook. Play approved!`;
   } else {
