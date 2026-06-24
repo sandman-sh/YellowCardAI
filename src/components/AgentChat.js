@@ -120,7 +120,7 @@ export default function AgentChat({
 
         // Update on-chain and local memory
         await updateMemory(updatedBets, { isTilt: true, emotionalState: data.emotionalState });
-      } else if (data.betDetails) {
+      } else if (data.betDetails && (data.betDetails.amount || data.betDetails.team)) {
         // Safe bet proposal: set as pending so user can confirm and pay/log it
         setPendingBet({
           match: data.betDetails.match || "World Cup Match",
